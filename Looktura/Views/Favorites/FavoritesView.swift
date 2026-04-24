@@ -49,44 +49,54 @@ struct FavoritesView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                    .padding(.horizontal, 22)
-                    .padding(.top, 58)
+        // Outer `VStack` with the header + collections strip pinned ABOVE the
+        // vertical ScrollView. See the long comment on `collectionChip` below
+        // for why the strip must live outside the scroll — short version: on
+        // physical iPhone hardware, the outer vertical scroll recognizer
+        // would swallow both horizontal swipes and button taps inside the
+        // nested horizontal ScrollView.
+        VStack(spacing: 0) {
+            header
+                .padding(.horizontal, 22)
+                .padding(.top, 58)
+                .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
 
-                collectionsStrip
-                    .padding(.top, 16)
-                    .padding(.bottom, 6)
+            collectionsStrip
+                .padding(.top, 16)
+                .padding(.bottom, 6)
 
-                if allFavorited.isEmpty {
-                    EmptyFavoritesView(onBrowse: onGoToFeed)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 40)
-                        .padding(.bottom, 120)
-                } else {
-                    heroCollection
-                        .padding(.horizontal, 22)
-                        .padding(.top, 10)
-
-                    if visibleProducts.isEmpty {
-                        emptyCollection
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if allFavorited.isEmpty {
+                        EmptyFavoritesView(onBrowse: onGoToFeed)
                             .padding(.horizontal, 22)
                             .padding(.top, 40)
                             .padding(.bottom, 120)
                     } else {
-                        grid
+                        heroCollection
                             .padding(.horizontal, 22)
-                            .padding(.top, 20)
-                            .padding(.bottom, 140)
+                            .padding(.top, 10)
+                            .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
+
+                        if visibleProducts.isEmpty {
+                            emptyCollection
+                                .padding(.horizontal, 22)
+                                .padding(.top, 40)
+                                .padding(.bottom, 120)
+                        } else {
+                            grid
+                                .padding(.horizontal, 22)
+                                .padding(.top, 20)
+                                .padding(.bottom, 140)
+                                .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
+                                .animation(.easeOut(duration: 0.18), value: selectedIds)
+                        }
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.bg.ignoresSafeArea())
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
-        .animation(.easeOut(duration: 0.18), value: selectedIds)
     }
 
     // MARK: Header
@@ -143,6 +153,13 @@ struct FavoritesView: View {
     // MARK: Collections strip
 
     private var collectionsStrip: some View {
+        // Note: we intentionally do NOT apply `.disabled(isSelectionMode)` or
+        // a blanket `.opacity(...)` on the strip itself — `.disabled` alters
+        // hit-testing at the container level, and combined with the
+        // nested-scroll environment this proved brittle on real hardware.
+        // Instead each chip (and the "Новая" button) dims its content inside
+        // its label and guards its action with `guard !isSelectionMode`, so
+        // the hit region stays the full capsule.
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 collectionChip(
@@ -161,7 +178,10 @@ struct FavoritesView: View {
                     )
                 }
 
-                Button(action: onCreateNewCollection) {
+                Button {
+                    guard !isSelectionMode else { return }
+                    onCreateNewCollection()
+                } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .semibold))
@@ -174,13 +194,13 @@ struct FavoritesView: View {
                     .overlay(
                         Capsule().stroke(theme.accent.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     )
+                    .contentShape(Capsule())
+                    .opacity(isSelectionMode ? 0.5 : 1.0)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 22)
         }
-        .disabled(isSelectionMode)
-        .opacity(isSelectionMode ? 0.5 : 1.0)
     }
 
     private func collectionChip(id: String?, name: String, count: Int, glyph: String) -> some View {
@@ -198,6 +218,22 @@ struct FavoritesView: View {
         //     3. Plain `HStack` + `.highPriorityGesture(TapGesture())` — same
         //        zero-translation constraint as (2), just at higher priority;
         //        still lost when the finger moved even slightly.
+        //     4. Even the `Button { } label: { }.buttonStyle(.plain)` pattern
+        //        — which works reliably for `Chip` in `Looktura/Views/Catalog/CatalogView.swift`
+        //        — still failed for this strip on physical iPhone hardware
+        //        (iOS 17+), while working fine in the simulator. Root cause:
+        //        the strip used to live INSIDE the page's outer vertical
+        //        `ScrollView`, and on real devices the outer vertical scroll
+        //        recognizer would swallow both the horizontal swipe and the
+        //        button tap inside the nested horizontal `ScrollView`. The
+        //        simulator doesn't reproduce this because its pan recognizer
+        //        is less aggressive, and `CatalogView` didn't trip on it
+        //        because its scroll geometry is larger and the gesture chain
+        //        resolves differently. The fix: lift the strip out of the
+        //        outer vertical `ScrollView` — see `body` above, where the
+        //        header + `collectionsStrip` are pinned above a separate
+        //        inner `ScrollView`. With only one scroll axis crossing the
+        //        strip's hit region, UIKit's button recognizer wins cleanly.
         //
         //   This version copies the pattern used by `Chip` in CatalogView,
         //   which reliably taps inside a horizontal ScrollView:
@@ -214,6 +250,10 @@ struct FavoritesView: View {
         //     • "Все" (nil id)        → filter-only, stay on this screen
         //     • named collection chip → navigate to CollectionDetail
         return Button {
+            // In selection mode the chip is visually dimmed but still
+            // hit-testable — guard here so the tap is a no-op without
+            // breaking the hit region (see the note on `collectionsStrip`).
+            guard !isSelectionMode else { return }
             if let id {
                 withAnimation(.easeOut(duration: 0.18)) {
                     selectedCollectionId = id
@@ -251,6 +291,7 @@ struct FavoritesView: View {
                 )
             )
             .contentShape(Capsule())
+            .opacity(isSelectionMode ? 0.5 : 1.0)
         }
         .buttonStyle(.plain)
     }
