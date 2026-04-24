@@ -1,0 +1,46 @@
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ---- Xcode ----
+# User-specific state — IDE layouts, breakpoints, selected schemes, etc.
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+
+# Build products
+build/
+DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Xcode playground state
+timeline.xctimeline
+playground.xcworkspace
+
+# ---- Swift Package Manager ----
+.build/
+.swiftpm/
+
+# ---- CocoaPods / Carthage (not used, but safe defaults) ----
+Pods/
+Carthage/Build/
+
+# ---- Fastlane ----
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output/
+
+# ---- Misc IDEs ----
+.idea/
+.vscode/
+
+# ---- Looktura-specific ----
+# DesignBundle is a flat export of the source tree for a design tool,
+# not a source of truth — keep it out of version control.
+DesignBundle/
