@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct StoreView: View {
     let repository: DataRepository
@@ -7,6 +8,8 @@ struct StoreView: View {
     let onOpenProduct: (String) -> Void
 
     @Environment(\.appTheme) private var theme
+
+    @State private var isSharing: Bool = false
 
     private var store: Store? { repository.store(id: storeId) }
     private var items: [Product] { repository.products(inStore: storeId) }
@@ -30,6 +33,10 @@ struct StoreView: View {
         // Splitting the button row into a safe-area-aware overlay fixes both
         // by letting SwiftUI handle the top inset per device, and the top
         // scrim below guarantees the black icons read against any cover art.
+        // Both back and share buttons now carry the same drop-shadow +
+        // hairline-stroke treatment DetailView's HeartBadge uses, so the two
+        // sides read at the same depth instead of the share icon floating
+        // flat against a light hero.
         ZStack(alignment: .top) {
             ScrollView {
                 VStack(spacing: 0) {
@@ -49,16 +56,36 @@ struct StoreView: View {
         // the same way across both screens.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.bg.ignoresSafeArea())
+        // Attached here (not on `body`) so the closure can capture the
+        // unwrapped `s` — `store` is optional one level up.
+        .sheet(isPresented: $isSharing) {
+            ShareSheet(items: shareItems(for: s))
+        }
     }
 
     private var floatingTopBar: some View {
+        // Shadow on both sides matches the visual weight of DetailView's
+        // HeartBadge (which shadows only the right) while keeping left/right
+        // symmetric here. Stroke isn't re-applied — GlassIconButton already
+        // carries its own hairline, and overlaying another would double it.
         HStack {
             GlassIconButton(icon: "chevron.left", size: 40, action: onBack)
+                .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
             Spacer()
-            GlassIconButton(icon: "square.and.arrow.up", size: 40, action: {})
+            GlassIconButton(icon: "square.and.arrow.up", size: 40) {
+                isSharing = true
+            }
+            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
         }
         .padding(.horizontal, 18)
         .padding(.top, 6)
+    }
+
+    // `[Any]` is intentional — UIActivityViewController routes each element
+    // by type (String → text, URL → link). compactMap guards the URL init.
+    private func shareItems(for s: Store) -> [Any] {
+        [s.name, s.addr, URL(string: "https://looktura.io/store/\(s.id)")]
+            .compactMap { $0 }
     }
 
     private func hero(s: Store) -> some View {
@@ -253,4 +280,16 @@ private struct StoreGridItem: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// SwiftUI bridge for `UIActivityViewController`. Kept private to this file —
+/// promote to `Views/Components/` when a second caller appears.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
