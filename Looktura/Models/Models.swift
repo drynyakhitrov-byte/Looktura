@@ -133,16 +133,45 @@ struct FavCollection: Codable, Identifiable, Hashable {
     var productIds: [String]
     var createdAt: Date
 
+    /// Custom glyph chosen in the rich new-collection creator (small serif
+    /// sigil like "✦", "◌", "❋" from the design handoff). `nil` for legacy
+    /// collections made before the creator existed — those fall back to the
+    /// mood's SF Symbol glyph in display helpers.
+    var customEmoji: String?
+
+    /// Custom accent hex (e.g. "#528A68") picked alongside the emoji. When
+    /// present, UI that shows the collection's chip / puck / preview tints
+    /// with this color instead of the global `theme.accent`. `nil` means
+    /// "use the theme accent" (legacy behaviour).
+    var customAccentHex: String?
+
     init(id: String = UUID().uuidString,
          name: String,
          mood: CollectionMood = .custom,
          productIds: [String] = [],
+         customEmoji: String? = nil,
+         customAccentHex: String? = nil,
          createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.mood = mood
         self.productIds = productIds
+        self.customEmoji = customEmoji
+        self.customAccentHex = customAccentHex
         self.createdAt = createdAt
+    }
+
+    // Codable keys are auto-synthesised; the two new fields are optional so
+    // decoding older persisted collections (pre-creator) Just Works — they
+    // arrive with both customs as nil and fall back to mood.glyph/theme.accent.
+}
+
+extension FavCollection {
+    /// True when the collection was created via the rich creator (icon + color
+    /// pick). Consumers use this to decide whether to render a serif emoji
+    /// "puck" or the default SF Symbol moodIcon.
+    var hasCustomStyling: Bool {
+        (customEmoji?.isEmpty == false) && (customAccentHex?.isEmpty == false)
     }
 }
 

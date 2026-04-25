@@ -18,6 +18,14 @@ struct MapView: View {
         )
     )
 
+    /// Flips true on `.onAppear` to drive the staggered entrance animation
+    /// of the floating chrome (search bar, route chip, store card).
+    ///
+    /// Stays on `@State` so each visit to the Map tab re-triggers the
+    /// animation — the user asked for UI elements to "appear with animation"
+    /// each time they tap Map in the tab bar, not only on first launch.
+    @State private var appeared: Bool = false
+
     private var selectedStore: Store? {
         repository.store(id: selectedStoreId) ?? repository.stores.first
     }
@@ -42,6 +50,14 @@ struct MapView: View {
             topSearchBar
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
+                // Search bar drops in from above the safe area. Short delay
+                // before the fade so it doesn't race the map itself settling.
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : -22)
+                .animation(
+                    .spring(response: 0.5, dampingFraction: 0.86).delay(0.05),
+                    value: appeared
+                )
 
             if hasFavoriteStores {
                 VStack {
@@ -58,6 +74,15 @@ struct MapView: View {
                     .padding(.horizontal, 18)
                     Spacer()
                 }
+                // Route chip slides in from the left, a beat after the
+                // search bar so the eye reads them sequentially rather than
+                // as a simultaneous pop.
+                .opacity(appeared ? 1 : 0)
+                .offset(x: appeared ? 0 : -28)
+                .animation(
+                    .spring(response: 0.5, dampingFraction: 0.86).delay(0.14),
+                    value: appeared
+                )
             }
 
             if let s = selectedStore {
@@ -72,6 +97,17 @@ struct MapView: View {
                     .padding(.horizontal, 14)
                     .padding(.bottom, 100)
                 }
+                // Store card rises from below. Last in the stagger so the
+                // user's gaze naturally lands on the primary CTA after the
+                // top chrome has settled. Larger offset than the search bar
+                // because the card is physically bigger — subtle offsets on
+                // big elements read as "did it even move?".
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 34)
+                .animation(
+                    .spring(response: 0.55, dampingFraction: 0.84).delay(0.22),
+                    value: appeared
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,6 +115,26 @@ struct MapView: View {
         .onAppear {
             if selectedStoreId.isEmpty {
                 selectedStoreId = repository.stores.first?.id ?? ""
+            }
+            // Reset before flipping so that if the user taps Map → Feed →
+            // Map, the second visit re-animates (otherwise `appeared` would
+            // already be true and the spring would be a no-op). Cheap reset:
+            // everything is wrapped in `if appeared { offset: 0 }`, so a brief
+            // flicker at 0 → animated-to-0 is imperceptible. We use a
+            // non-animated transaction to guarantee the reset itself is not
+            // tweened.
+            var reset = Transaction()
+            reset.disablesAnimations = true
+            withTransaction(reset) {
+                appeared = false
+            }
+            // Kick the spring on the next run-loop tick so SwiftUI has a
+            // chance to commit the `false` layout before the `true` one
+            // animates from it. Without the dispatch, the two state writes
+            // coalesce into the same frame and there's nothing to animate
+            // against.
+            DispatchQueue.main.async {
+                appeared = true
             }
         }
         .task {

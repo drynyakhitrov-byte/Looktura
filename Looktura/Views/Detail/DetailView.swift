@@ -93,25 +93,37 @@ struct DetailView: View {
         .padding(.top, 6)
     }
 
-    /// Hero is now a horizontal TabView so the user can swipe through the
-    /// product's gallery. Tapping any slide lifts the selection into the
-    /// full-screen `FullscreenGallery` where they can zoom + pan the photo.
+    /// Hero is a horizontal TabView so the user can swipe through the product's
+    /// gallery. Tapping any slide lifts the selection into the full-screen
+    /// `FullscreenGallery` where they can zoom + pan the photo.
+    ///
+    /// The tap site is a `Button` rather than an `.onTapGesture`. Reason: the
+    /// old `.onTapGesture` sometimes competed with the TabView's page-swipe
+    /// gesture — a quick swipe was getting consumed as a tap (opening the
+    /// full-screen gallery at the wrong page) and slow drags were landing on
+    /// the wrong slide. `Button` defers to the system scroll gesture by
+    /// design, so swipe-vs-tap disambiguation happens at UIKit's gesture
+    /// recognizer level rather than inside SwiftUI's custom-gesture plumbing.
     private func heroBlock(p: Product) -> some View {
         let urls = p.galleryURLs
         return ZStack(alignment: .bottom) {
             TabView(selection: $galleryIndex) {
-                ForEach(Array(urls.enumerated()), id: \.offset) { idx, url in
-                    ZStack {
-                        Color.black.opacity(0.06) // canvas behind the fit area
-                        CachedImage(url: url, contentMode: .fill) {
-                            // Fall back to the "primary" ProductImage so the
-                            // first paint doesn't flash a blank rectangle.
-                            ProductImage(product: p, cornerRadius: 0, showImageId: false)
+                ForEach(urls.indices, id: \.self) { idx in
+                    Button {
+                        fullscreenStart = idx
+                    } label: {
+                        ZStack {
+                            Color.black.opacity(0.06) // canvas behind the fit area
+                            CachedImage(url: urls[idx], contentMode: .fill) {
+                                // Fall back to the "primary" ProductImage so
+                                // the first paint doesn't flash a blank rect.
+                                ProductImage(product: p, cornerRadius: 0, showImageId: false)
+                            }
+                            .clipped()
                         }
-                        .clipped()
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture { fullscreenStart = idx }
+                    .buttonStyle(.plain)
                     .tag(idx)
                 }
             }
@@ -119,21 +131,46 @@ struct DetailView: View {
             .frame(height: 560)
             .ignoresSafeArea(edges: .top)
 
+            // Bottom padding clears the scrollBody's `-28pt` rounded-top
+            // overlap plus a breathing gap. The old 24pt placed the dots
+            // INSIDE the rounded transition — the bottom half of the capsules
+            // was getting clipped by the sheet, which is what the user meant
+            // by "обрезанный и не виден".
             pageDots(count: urls.count, active: galleryIndex)
-                .padding(.bottom, 24)
+                .padding(.bottom, 54)
         }
         .frame(height: 560)
     }
 
+    /// Gallery page indicator. Sits on a dark glass pill so it reads over
+    /// light linen shots and dark leather alike, and is sized large enough
+    /// (8pt dots, 24pt active) to be legible at a glance rather than fading
+    /// into the photo.
     private func pageDots(count: Int, active: Int) -> some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             ForEach(0..<count, id: \.self) { i in
                 Capsule()
-                    .fill(i == active ? Color.white : Color.white.opacity(0.45))
-                    .frame(width: i == active ? 20 : 6, height: 6)
-                    .animation(.easeOut(duration: 0.2), value: active)
+                    .fill(i == active ? Color.white : Color.white.opacity(0.55))
+                    .frame(width: i == active ? 24 : 8, height: 8)
+                    .animation(.easeOut(duration: 0.25), value: active)
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        // Dark tint first, then `.ultraThinMaterial` — stacking this way gives
+        // the pill enough body to stay visible over blown-out product photos
+        // while still refracting the image beneath. A pure material without
+        // the dark tint disappeared on light backgrounds.
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color.black.opacity(0.24))
+        )
+        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 10, y: 3)
     }
 
     private func scrollBody(p: Product, s: Store) -> some View {

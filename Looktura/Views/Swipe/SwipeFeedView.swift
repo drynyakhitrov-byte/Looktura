@@ -140,7 +140,7 @@ struct SwipeFeedView: View {
 
     @ViewBuilder
     private func cardView(for id: String, idx: Int, size: CGSize) -> some View {
-        if let product = repository.product(id: id) {
+        if repository.product(id: id) != nil {
             let isTop = idx == 0
             // Tinder semantics: back cards sit at their rest pose during drag —
             // they don't "preview" the advancement. The rise-up animation only
@@ -150,47 +150,71 @@ struct SwipeFeedView: View {
             let yOff = stackYOffset(idx)
             let op = stackOpacity(idx)
 
-            Group {
-                if isTop {
-                    // Top card binds drag directly so translation/rotation
-                    // respond to the finger in real time.
-                    SwipeCard(product: product, store: store(for: product))
-                        .frame(width: size.width, height: size.height)
-                        .overlay { decisionOverlays(drag: drag) }
-                        .scaleEffect(scale)
-                        .offset(y: yOff)
-                        .opacity(op)
-                        .offset(drag)
-                        .rotationEffect(.degrees(Double(drag.width) / rotationDivisor))
-                        .onTapGesture { if !isDragging { onOpenDetail(id) } }
-                        .gesture(dragGesture)
-                } else {
-                    // Back cards are completely independent of `drag` — wrapping
-                    // them in a dedicated view lets SwiftUI skip rebuild on
-                    // every onChanged tick (only `id` and `idx` matter). This
-                    // is the other half of the "smooth drag" fix alongside
-                    // compositingGroup in SwipeCard: fewer views re-diff per
-                    // frame → less main-thread work during the gesture.
-                    BackCardView(
-                        id: id,
-                        repository: repository,
-                        size: size,
-                        scale: scale,
-                        yOff: yOff,
-                        op: op
-                    )
-                }
-            }
+            // Unified view tree for every slot. The old code branched on
+            // `isTop` and rendered either a direct `SwipeCard` (with drag +
+            // gesture modifiers) OR a `BackCardView` wrapper. When the top
+            // card flew off, the second card's view type flipped from
+            // `BackCardView` to the direct branch — SwiftUI treated that as
+            // unmount + remount, so `scaleEffect(0.94)` vanished and the new
+            // tree rendered at `scaleEffect(1.0)` discontinuously. Combined
+            // with the insertion transition briefly flashing identity before
+            // active, the promoting card read as "shrink, then rise" — the
+            // exact bug the user reported.
+            //
+            // Fix: every slot renders as a `BackCardView` (which isolates
+            // scale/yOff/opacity from drag ticks via its own Equatable). Drag
+            // translation, rotation, overlay and gesture live on the OUTSIDE
+            // and are gated by `isTop`. When the stack reshuffles, the view
+            // type is stable → scale interpolates smoothly 0.94 → 1.0.
+            BackCardView(
+                id: id,
+                repository: repository,
+                size: size,
+                scale: scale,
+                yOff: yOff,
+                op: op
+            )
+            .overlay { if isTop { decisionOverlays(drag: drag) } }
+            .offset(isTop ? drag : .zero)
+            .rotationEffect(.degrees(isTop ? Double(drag.width) / rotationDivisor : 0))
+            .onTapGesture { if isTop && !isDragging { onOpenDetail(id) } }
+            // Gesture is always attached; `allowsHitTesting(isTop)` gates
+            // whether it actually receives touches. Attaching it only to the
+            // top view would force another view-type diff on promotion.
+            .gesture(dragGesture)
             .allowsHitTesting(isTop)
             .zIndex(Double(3 - idx))
             .transition(
-                // Main stack is a hand-off target. Removals are identity
-                // (card is now on the exiting layer). Insertions start at
-                // the next-back rest pose and spring into idx=2 — matches
-                // the Tinder "next card comes into view from behind the
-                // deck" feel without popping or sliding sideways.
+                // Hand-off target for the stack. Removals are identity — the
+                // card is already mid-flight on the exiting layer, any extra
+                // removal animation here would fight it.
+                //
+                // Insertions are the "new back-card appears from depth" beat.
+                // Earlier iterations had various problems:
+                //   1. `.opacity` fade-in → card ghosted for a third of a
+                //      second ("врывается полупрозрачной" bug).
+                //   2. `.modifier` with 0.85 → 1.0 opacity ramp — better, but
+                //      still read as "slight translucency" on the surfacing
+                //      card.
+                //   3. `.modifier` with scale 0.90 → 1.0 + offset 18 → 0 —
+                //      fixed the transparency, but SwiftUI's one-frame render
+                //      at identity BEFORE the transition's active state kicks
+                //      in caused a brief shrink (identity 1.0 × rest 0.88 →
+                //      active 0.90 × rest 0.88 → identity). The user saw a
+                //      tiny dip-then-grow, which read as "back card first
+                //      shrinks, then properly rises".
+                //
+                // Current fix: pure y-offset, no scale. Even if SwiftUI briefly
+                // renders identity first, the only visible effect is "sits
+                // right at rest" before the spring pulls it up from 22pt
+                // below — no scale jitter whatsoever. Timing also matches the
+                // stack spring so the insertion stays in phase with the
+                // promotion shift.
                 .asymmetric(
-                    insertion: .opacity.animation(.easeOut(duration: 0.32)),
+                    insertion: .modifier(
+                        active: StackEmergeModifier(active: true),
+                        identity: StackEmergeModifier(active: false)
+                    ).animation(.spring(response: 0.52, dampingFraction: 0.86)),
                     removal: .identity
                 )
             )
@@ -214,11 +238,14 @@ struct SwipeFeedView: View {
     }
 
     private func stackOpacity(_ idx: Int) -> Double {
-        switch idx {
-        case 0: return 1.0
-        case 1: return 0.78
-        default: return 0.48
-        }
+        // All cards stay fully opaque. Previously back cards were 0.78 / 0.48
+        // to fake "depth" — but when a card promoted from idx=1 to idx=0,
+        // opacity interpolated 0.78 → 1.0 across the 0.52s spring, and the
+        // user read that visible ramp as "the next card is slightly
+        // transparent". Depth is communicated purely through scale + y-offset
+        // + each card's own shadow (see `stackScale` / `stackYOffset`), which
+        // is how Tinder-style stacks actually feel in production apps.
+        1.0
     }
 
     private func decisionOverlays(drag: CGSize) -> some View {
@@ -660,6 +687,28 @@ private struct BackCardView: View, Equatable {
                 .offset(y: yOff)
                 .opacity(op)
         }
+    }
+}
+
+/// Transition modifier used when a brand-new card appears at the back of the
+/// stack (because the previous front card flew off). The card "emerges from
+/// depth" by sliding up from 22pt below its rest position.
+///
+/// Pure y-offset — no scale component. Any scale delta, even in a transition,
+/// risks the one-frame-identity flash that reads as "back card briefly shrinks
+/// before rising" (see call-site comment for the full rabbit-hole). An offset
+/// at identity is 0pt, at active is +22pt; if SwiftUI happens to render
+/// identity for a frame before activating the transition, the worst case is
+/// the card sitting exactly at rest for one frame — invisible to the eye.
+///
+/// Also no opacity — any fade, however shallow, reads as "slight translucency"
+/// (the other bug family we fought in `stackOpacity`). Depth is communicated
+/// entirely by geometry: y-offset here, plus each card's own shadow.
+private struct StackEmergeModifier: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content.offset(y: active ? 22 : 0)
     }
 }
 

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		17BCD9712DC80B1F1F81FB08 /* HeartBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E1114F093D28F6CB3FC8C6 /* HeartBadge.swift */; };
+		184118C749DFD44C989BE823 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 473443B31438BBC079F68F2F /* SplashView.swift */; };
 		1A1A8BBE1EF9BFC3C371A937 /* StoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7E25F3BB4151FF70E79ACE /* StoreView.swift */; };
 		1AE9FF2A4E7C9C10AFD6D1F9 /* Fraunces-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AE669E65D83788E214C57F6B /* Fraunces-Bold.ttf */; };
 		1D7E2AE28E74A5D2CE306938 /* JetBrainsMono-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4254874D1414F21C2D13C9A9 /* JetBrainsMono-SemiBold.ttf */; };
@@ -38,6 +39,7 @@
 		7D34F4AD8C4E25ED44ADE487 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6CA22A8907EAD060BF495F7 /* AuthView.swift */; };
 		7E510BEC0816EA185A82FF73 /* SwipeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB25AB0CEEB69AB7DC0F060 /* SwipeCard.swift */; };
 		7EF8CFAD765A88B4B570107D /* CatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 943B81BDAAF03746EA106A28 /* CatalogView.swift */; };
+		8630F761DA36D1BE67845008 /* MoodPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE39487AFCEC1EDA7376800B /* MoodPickerView.swift */; };
 		89102F102DA628593FFF49AA /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB91628A42AB5519F95C30BE /* ImageCache.swift */; };
 		9018BE55E080299C727C3D07 /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C69FA2881472DDF2663D18 /* MapView.swift */; };
 		91789D482ED184AD19010649 /* LookturaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D1B3FE692CACDB8F067DFC /* LookturaApp.swift */; };
@@ -87,7 +89,8 @@
 		3983F6DC5A3434A3C0A77922 /* JetBrainsMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-Bold.ttf"; sourceTree = "<group>"; };
 		3E9E05F807611EEBBEACA413 /* StylizedMapCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylizedMapCanvas.swift; sourceTree = "<group>"; };
 		4254874D1414F21C2D13C9A9 /* JetBrainsMono-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsMono-SemiBold.ttf"; sourceTree = "<group>"; };
-		47C732CB25756FB1410F2B0E /* Looktura.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Looktura.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		473443B31438BBC079F68F2F /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		47C732CB25756FB1410F2B0E /* Looktura.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Looktura.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		48BBB68F0C399B1D066AD10B /* Inter-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Inter-Bold.ttf"; sourceTree = "<group>"; };
 		49CF70343323E3E7FAE98563 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4A09567CCD29F2CE3796F5C9 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
@@ -113,6 +116,7 @@
 		B3DC8460D5A2E8D88C2CBE50 /* DataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataRepository.swift; sourceTree = "<group>"; };
 		B6584FA98E5131E0131D9058 /* QuizView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuizView.swift; sourceTree = "<group>"; };
 		B9DC9212D18D540322F58763 /* IntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroView.swift; sourceTree = "<group>"; };
+		BE39487AFCEC1EDA7376800B /* MoodPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoodPickerView.swift; sourceTree = "<group>"; };
 		BF39CB1FD25747B6027499DE /* FullscreenGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenGallery.swift; sourceTree = "<group>"; };
 		C026E8B118C88116FDC84F4B /* Fraunces-Light.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Fraunces-Light.ttf"; sourceTree = "<group>"; };
 		C4D1B3FE692CACDB8F067DFC /* LookturaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LookturaApp.swift; sourceTree = "<group>"; };
@@ -275,6 +279,14 @@
 			path = Detail;
 			sourceTree = "<group>";
 		};
+		92FAACE7AA4A5E83279F71BB /* Splash */ = {
+			isa = PBXGroup;
+			children = (
+				473443B31438BBC079F68F2F /* SplashView.swift */,
+			);
+			path = Splash;
+			sourceTree = "<group>";
+		};
 		9E61C95BA643A4487E53D7A1 = {
 			isa = PBXGroup;
 			children = (
@@ -305,6 +317,7 @@
 				A6CA22A8907EAD060BF495F7 /* AuthView.swift */,
 				0F0E1041C62E6C7BD43F5773 /* GeoView.swift */,
 				B9DC9212D18D540322F58763 /* IntroView.swift */,
+				BE39487AFCEC1EDA7376800B /* MoodPickerView.swift */,
 				7B0FBCE64DC80D9F83FC525F /* OnboardingFlow.swift */,
 				B6584FA98E5131E0131D9058 /* QuizView.swift */,
 			);
@@ -325,6 +338,7 @@
 				9F9039925D40D548FC8EFF52 /* Profile */,
 				49E5E3637F60EB1F3872FA47 /* Route */,
 				EBA269E2570A467CBB88FCEC /* Search */,
+				92FAACE7AA4A5E83279F71BB /* Splash */,
 				A6CD3268CA9A50CDEA5556E3 /* Store */,
 				5317B289F3CB2CB841CA145F /* Swipe */,
 			);
@@ -413,6 +427,7 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					8018983D536A0346A9A91BE5 = {
+						DevelopmentTeam = 65J85Y7KCM;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -493,6 +508,7 @@
 				CD6234082DDEB1A784D73577 /* MapAvailability.swift in Sources */,
 				9018BE55E080299C727C3D07 /* MapView.swift in Sources */,
 				2600D97B6C0406D124539158 /* Models.swift in Sources */,
+				8630F761DA36D1BE67845008 /* MoodPickerView.swift in Sources */,
 				C8C9C4024C16F25AE5FCD089 /* MotionManager.swift in Sources */,
 				D5E02712E27516908CEB2CF5 /* NewCollectionSheet.swift in Sources */,
 				FC6777A831294FC89DFC80E8 /* NotificationsView.swift in Sources */,
@@ -503,6 +519,7 @@
 				BB229676ABEBBD99846AA26F /* RootView.swift in Sources */,
 				B790ECAF0DA7FB0331063207 /* RouteBuilderView.swift in Sources */,
 				637CF072388576FD10C4B61A /* SearchView.swift in Sources */,
+				184118C749DFD44C989BE823 /* SplashView.swift in Sources */,
 				1A1A8BBE1EF9BFC3C371A937 /* StoreView.swift in Sources */,
 				506CF49605C9D5F27A406F1E /* StylizedMapCanvas.swift in Sources */,
 				7E510BEC0816EA185A82FF73 /* SwipeCard.swift in Sources */,
@@ -524,7 +541,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 65J85Y7KCM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Looktura/Info.plist;
@@ -579,7 +595,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 65J85Y7KCM;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -617,7 +633,6 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = 65J85Y7KCM;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Looktura/Info.plist;
@@ -672,7 +687,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 65J85Y7KCM;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
