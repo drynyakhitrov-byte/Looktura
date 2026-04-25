@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct StoreView: View {
     let repository: DataRepository
@@ -7,6 +8,8 @@ struct StoreView: View {
     let onOpenProduct: (String) -> Void
 
     @Environment(\.appTheme) private var theme
+
+    @State private var isSharing: Bool = false
 
     private var store: Store? { repository.store(id: storeId) }
     private var items: [Product] { repository.products(inStore: storeId) }
@@ -30,6 +33,10 @@ struct StoreView: View {
         // Splitting the button row into a safe-area-aware overlay fixes both
         // by letting SwiftUI handle the top inset per device, and the top
         // scrim below guarantees the black icons read against any cover art.
+        // The share button carries the same drop-shadow DetailView's
+        // HeartBadge bakes in, so the right-hand chrome reads at the same
+        // depth on both screens. Back button stays plain to mirror
+        // DetailView's back exactly.
         ZStack(alignment: .top) {
             ScrollView {
                 VStack(spacing: 0) {
@@ -49,16 +56,37 @@ struct StoreView: View {
         // the same way across both screens.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.bg.ignoresSafeArea())
+        // Attached here (not on `body`) so the closure can capture the
+        // unwrapped `s` — `store` is optional one level up.
+        .sheet(isPresented: $isSharing) {
+            ShareSheet(items: shareItems(for: s))
+        }
     }
 
     private var floatingTopBar: some View {
+        // Identical paddings to DetailView.floatingTopBar (18pt horizontal,
+        // 6pt top) — user-reported the store chrome felt closer to the edges
+        // than the product card; matching the exact values is the fix.
+        // Button treatment mirrors DetailView: plain `GlassIconButton` on
+        // the left (back), shadowed glyph on the right (matching the
+        // drop-shadow `HeartBadge` bakes in on DetailView).
         HStack {
             GlassIconButton(icon: "chevron.left", size: 40, action: onBack)
             Spacer()
-            GlassIconButton(icon: "square.and.arrow.up", size: 40, action: {})
+            GlassIconButton(icon: "square.and.arrow.up", size: 40) {
+                isSharing = true
+            }
+            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
         }
         .padding(.horizontal, 18)
         .padding(.top, 6)
+    }
+
+    // `[Any]` is intentional — UIActivityViewController routes each element
+    // by type (String → text, URL → link). compactMap guards the URL init.
+    private func shareItems(for s: Store) -> [Any] {
+        [s.name, s.addr, URL(string: "https://looktura.io/store/\(s.id)")]
+            .compactMap { $0 }
     }
 
     private func hero(s: Store) -> some View {
@@ -253,4 +281,16 @@ private struct StoreGridItem: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// SwiftUI bridge for `UIActivityViewController`. Kept private to this file —
+/// promote to `Views/Components/` when a second caller appears.
+private struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
