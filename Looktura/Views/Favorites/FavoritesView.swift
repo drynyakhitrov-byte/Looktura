@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct FavoritesView: View {
     @Bindable var appState: AppState
@@ -49,44 +48,72 @@ struct FavoritesView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                    .padding(.horizontal, 22)
-                    .padding(.top, 58)
+        // `collectionsStrip` is LIFTED OUT of the outer vertical ScrollView on
+        // purpose. On real iPhone 16 Pro Max (iOS 26.4) a horizontal strip
+        // nested inside a vertical ScrollView suffers gesture-arbitration
+        // failures that the simulator does not reproduce: horizontal pans
+        // and taps on the mini-cards both get swallowed by the outer pan
+        // recogniser even though `UIKitTap` bypasses SwiftUI gestures
+        // entirely. Giving the strip its own gesture context — by placing
+        // it in the outer VStack *above* the ScrollView — removes the
+        // outer pan from the arbitration tree for that region entirely,
+        // and taps + horizontal pans both fire reliably on device.
+        //
+        // Trade-off: the strip is now sticky rather than scrolling away
+        // with the page. That is actually desirable UX (the filters stay
+        // reachable while browsing the grid) and matches the "Apple Music
+        // library" pattern users already know.
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.horizontal, 22)
+                .padding(.top, 58)
 
-                collectionsStrip
-                    .padding(.top, 16)
-                    .padding(.bottom, 6)
+            collectionsStrip
+                .padding(.top, 16)
+                .padding(.bottom, 6)
+                // Animate only the strip's own selection-mode dim so the
+                // outer VStack's gesture tree isn't re-resolved on every
+                // selection toggle (previously `.animation` was applied
+                // on the entire body, which could re-install gesture
+                // recognisers mid-interaction).
+                .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
 
-                if allFavorited.isEmpty {
-                    EmptyFavoritesView(onBrowse: onGoToFeed)
-                        .padding(.horizontal, 22)
-                        .padding(.top, 40)
-                        .padding(.bottom, 120)
-                } else {
-                    heroCollection
-                        .padding(.horizontal, 22)
-                        .padding(.top, 10)
-
-                    if visibleProducts.isEmpty {
-                        emptyCollection
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if allFavorited.isEmpty {
+                        EmptyFavoritesView(onBrowse: onGoToFeed)
                             .padding(.horizontal, 22)
                             .padding(.top, 40)
                             .padding(.bottom, 120)
                     } else {
-                        grid
+                        heroCollection
                             .padding(.horizontal, 22)
-                            .padding(.top, 20)
-                            .padding(.bottom, 140)
+                            .padding(.top, 10)
+
+                        if visibleProducts.isEmpty {
+                            emptyCollection
+                                .padding(.horizontal, 22)
+                                .padding(.top, 40)
+                                .padding(.bottom, 120)
+                        } else {
+                            grid
+                                .padding(.horizontal, 22)
+                                .padding(.top, 20)
+                                .padding(.bottom, 140)
+                        }
                     }
                 }
             }
+            // Scope the two body-level animations to the scrolling content
+            // where `isSelectionMode` / `selectedIds` actually drive visual
+            // changes. Keeping them off the outer VStack prevents the
+            // strip's gesture recognisers from being re-resolved when
+            // selection state changes elsewhere.
+            .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
+            .animation(.easeOut(duration: 0.18), value: selectedIds)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.bg.ignoresSafeArea())
-        .animation(.spring(response: 0.42, dampingFraction: 0.82), value: isSelectionMode)
-        .animation(.easeOut(duration: 0.18), value: selectedIds)
     }
 
     // MARK: Header
@@ -142,117 +169,124 @@ struct FavoritesView: View {
 
     // MARK: Collections strip
 
+    /// Horizontally-scrolling strip of mini collection cards. Replaces the
+    /// older capsule-chip row — the chips were too visually quiet (the user
+    /// described them as "kind of like buttons at the top"), so we promoted
+    /// them to proper mini-cards that read at a glance.
+    ///
+    /// Anatomy of each card (140×90):
+    ///   • Top row: a round "glyph puck" on the left + count on the right
+    ///   • Bottom:  collection name (one line, truncated)
+    ///
+    /// Visual language:
+    ///   • Active:   filled with a diagonal gradient built from the
+    ///               collection's accent (or `theme.accent` for "Все" /
+    ///               legacy collections without custom styling); ink-tinted
+    ///               shadow and 1pt strokeBorder in the accent color.
+    ///   • Inactive: `liquidGlass` surface with a hairline white stroke —
+    ///               same material language as the rest of the app.
+    ///   • "Новая":  dashed-outline empty card with a plus icon — matches
+    ///               the "add a card" treatment from the design handoff.
     private var collectionsStrip: some View {
+        // Intentionally NO `.disabled(isSelectionMode)` and NO blanket
+        // `.opacity(...)` on the ScrollView itself. Both affect the
+        // ScrollView's gesture layer and/or compositing in ways that
+        // interact badly with the mini-cards' UIKit tap recognisers on
+        // real iPhone 16 Pro Max (iOS 26.4). The per-card dim below
+        // gives the same visual cue without touching the scroll's
+        // gesture tree.
+        //
+        // Tapping a mini-card while in selection mode is harmless: it
+        // just filters the grid underneath, which is itself greyed out
+        // during selection.
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                collectionChip(
+            HStack(spacing: 10) {
+                collectionMiniCard(
                     id: nil,
                     name: "Все",
                     count: allFavorited.count,
-                    glyph: "heart.fill"
+                    glyph: "heart.fill",
+                    customGlyph: nil,
+                    customAccentHex: nil
                 )
 
                 ForEach(appState.collections) { c in
-                    collectionChip(
+                    collectionMiniCard(
                         id: c.id,
                         name: c.name,
                         count: c.productIds.count,
-                        glyph: c.mood.glyph
+                        glyph: c.mood.glyph,
+                        customGlyph: c.customEmoji,
+                        customAccentHex: c.customAccentHex
                     )
                 }
 
-                Button(action: onCreateNewCollection) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Новая")
-                            .font(.sans(13, weight: .medium))
-                    }
-                    .foregroundStyle(theme.accentDeep)
-                    .padding(.horizontal, 14)
-                    .frame(height: 34)
-                    .overlay(
-                        Capsule().stroke(theme.accent.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    )
-                }
-                .buttonStyle(.plain)
+                newCollectionMiniCard
             }
             .padding(.horizontal, 22)
+            .padding(.vertical, 4)
+            // Dim the cards (not the scroll view). Applied to the HStack
+            // keeps hit-testing clean — SwiftUI still composites the
+            // strip normally and the ScrollView's pan recogniser stays
+            // untouched.
+            .opacity(isSelectionMode ? 0.5 : 1.0)
         }
-        .disabled(isSelectionMode)
-        .opacity(isSelectionMode ? 0.5 : 1.0)
     }
 
-    private func collectionChip(id: String?, name: String, count: Int, glyph: String) -> some View {
+    /// Single mini-card. See `CollectionMiniCard` struct doc comment (below
+    /// in the same file) for the full five-attempt gesture-arbitration
+    /// story — tl;dr a plain SwiftUI `Button` + `.buttonStyle(.plain)`
+    /// works once the strip is lifted out of the outer vertical
+    /// ScrollView (see `body`).
+    private func collectionMiniCard(
+        id: String?,
+        name: String,
+        count: Int,
+        glyph: String,
+        customGlyph: String?,
+        customAccentHex: String?
+    ) -> some View {
         let isActive = selectedCollectionId == id
-        // Gesture strategy — why `Button { } label: { }.buttonStyle(.plain)`:
-        //
-        //   Three earlier attempts failed in different ways:
-        //     1. Raw `Button` wrapping the whole chip — the previous version
-        //        had `.contentShape(Capsule())` on the OUTER chip, so the
-        //        Button's hit region shrank to the Text frame and the rest of
-        //        the chip wasn't tappable.
-        //     2. Plain `HStack` + `.onTapGesture` — a tap gesture inside a
-        //        horizontal ScrollView requires zero finger translation, and
-        //        human taps move a few pixels, so the pan recognizer won.
-        //     3. Plain `HStack` + `.highPriorityGesture(TapGesture())` — same
-        //        zero-translation constraint as (2), just at higher priority;
-        //        still lost when the finger moved even slightly.
-        //
-        //   This version copies the pattern used by `Chip` in CatalogView,
-        //   which reliably taps inside a horizontal ScrollView:
-        //     • `Button { action } label: { content }` — lets UIKit's button
-        //       gesture recognizer handle the tap with its own finger-wobble
-        //       tolerance (same tolerance the system uses for tab bar items).
-        //     • `.contentShape(Capsule())` lives INSIDE the label, on the
-        //       styled view — so the whole capsule is hittable, not just the
-        //       text frame.
-        //     • `.buttonStyle(.plain)` strips the default blue tint so we
-        //       keep our own glass styling; it does not affect hit-testing.
-        //
-        //   Behaviour:
-        //     • "Все" (nil id)        → filter-only, stay on this screen
-        //     • named collection chip → navigate to CollectionDetail
-        return Button {
-            if let id {
-                withAnimation(.easeOut(duration: 0.18)) {
+        let accent: Color = {
+            if let hex = customAccentHex, !hex.isEmpty {
+                return Color(hex: hex)
+            }
+            return theme.accent
+        }()
+        let cardShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+
+        return CollectionMiniCard(
+            id: id,
+            name: name,
+            count: count,
+            glyph: glyph,
+            customGlyph: customGlyph,
+            accent: accent,
+            isActive: isActive,
+            theme: theme,
+            cardShape: cardShape,
+            onTap: {
+                // Tapping a mini-card only swaps the active filter. The
+                // dedicated "open the collection page" affordance lives on
+                // the hero block (`heroCollection`'s arrow.up.right button),
+                // so a single tap here doesn't simultaneously filter AND
+                // navigate — which was disorienting because the user got
+                // both a list rewrite and a push transition from one gesture.
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                     selectedCollectionId = id
                 }
-                onOpenCollection(id)
-            } else {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    selectedCollectionId = nil
-                }
             }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: glyph)
-                    .font(.system(size: 10, weight: .semibold))
-                Text(name)
-                    .font(.sans(13, weight: .medium))
-                Text("\(count)")
-                    .font(.mono(10))
-                    .opacity(0.6)
-            }
-            .foregroundStyle(isActive ? theme.accentInk : theme.ink)
-            .padding(.horizontal, 12)
-            .frame(height: 34)
-            .background {
-                if isActive {
-                    Capsule().fill(theme.ink)
-                } else {
-                    Capsule().fill(Color.clear).liquidGlass(in: Capsule())
-                }
-            }
-            .overlay(
-                Capsule().strokeBorder(
-                    isActive ? theme.ink : Color.white.opacity(0.25),
-                    lineWidth: isActive ? 1 : 0.5
-                )
-            )
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
+        )
+    }
+
+    /// Dashed "Новая" card that sits at the end of the strip. Same
+    /// plain-view gesture strategy as `CollectionMiniCard` (see that
+    /// struct's doc comment for why we moved off `Button`).
+    private var newCollectionMiniCard: some View {
+        NewCollectionMiniCard(
+            theme: theme,
+            onTap: onCreateNewCollection
+        )
     }
 
     // MARK: Hero
@@ -619,19 +653,27 @@ private struct FavoriteCard: View {
                 }
             }
         }
-        .scaleEffect(isSelected ? 0.96 : (isPressed ? 0.985 : 1.0))
+        .scaleEffect(isSelected ? 0.96 : (isPressed ? 0.975 : 1.0))
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+        // Long-press duration was 0.35s — felt sluggish on phone (the
+        // "I'm pressing but nothing's happening" moment of uncertainty).
+        // 0.22s is right at the edge of "intentional hold" without
+        // dragging interactions into false positives; the press-scale
+        // animation provides visual feedback the instant the finger lands
+        // so the user never wonders if the tap registered.
         .onLongPressGesture(
-            minimumDuration: 0.35,
+            minimumDuration: 0.22,
             maximumDistance: 30,
             perform: { onLongPress() },
             onPressingChanged: { pressing in
-                withAnimation(.easeOut(duration: 0.12)) { isPressed = pressing }
+                withAnimation(.spring(response: 0.22, dampingFraction: 0.72)) {
+                    isPressed = pressing
+                }
             }
         )
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
-        .animation(.easeOut(duration: 0.18), value: isSelectionMode)
+        .animation(.spring(response: 0.3, dampingFraction: 0.76), value: isSelected)
+        .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isSelectionMode)
     }
 
     private var selectionBadge: some View {
@@ -648,6 +690,198 @@ private struct FavoriteCard: View {
                     .foregroundStyle(theme.accentInk)
             }
         }
+    }
+}
+
+/// Mini-card cell for the collections strip. Lives outside FavoritesView so
+/// its gesture state doesn't cause the parent view to recompute the whole
+/// strip on every press.
+///
+/// ## Gesture implementation history (read this before "fixing" it)
+///
+/// We've now tried FIVE approaches. The current (Attempt 5) is the one
+/// that works on real iPhone 16 Pro Max (iOS 26.4):
+///
+///   **Attempt 1:** `.onTapGesture` + `.onLongPressGesture(onPressingChanged:)`
+///   The long-press recogniser claims the touch immediately (to report
+///   press-began). On iOS 26 the arbiter then starves the parent
+///   ScrollView's pan, so taps are lost AND scroll-by-drag is lost too.
+///
+///   **Attempt 2:** `Button` + `ButtonStyle` with the strip **inside** the
+///   outer vertical `ScrollView`. Button defers its touch capture to
+///   cooperate with an enclosing ScrollView — textbook fix in theory. In
+///   practice, with two nested ScrollViews (outer vertical + inner
+///   horizontal), the arbiter handed the touch to the *outer* pan on the
+///   slightest finger motion and Button's deferred claim never won.
+///
+///   **Attempt 3:** plain view + `.onTapGesture`.
+///   SwiftUI's own gesture. Simulator worked; device still missed taps
+///   because the outer vertical ScrollView was consuming touches before
+///   the tap recogniser could resolve.
+///
+///   **Attempt 4:** SwiftUI visual content + UIKit tap recogniser via
+///   `UIKitTap` (`UIViewRepresentable`). A transparent `UIView` sibling
+///   was overlaid on the card's full rect with a bare
+///   `UITapGestureRecognizer` attached. The UIView's `hitTest` returned
+///   `self` unconditionally, which on iOS 26 stole touches not just from
+///   the card's own SwiftUI gestures but also from the enclosing
+///   SwiftUI ScrollView — so horizontal scrolling over a card
+///   disappeared entirely. Taps still failed on device because the
+///   outer vertical ScrollView's pan started winning as soon as the
+///   finger moved a pixel, and the UIView's `cancelsTouchesInView =
+///   false` didn't help when the ancestor pan was a *SwiftUI* gesture
+///   rather than a UIKit `UIPanGestureRecognizer`.
+///
+///   **Attempt 5 (this version):** `Button` + `.buttonStyle(.plain)`,
+///   and the horizontal strip is **LIFTED OUT** of the outer vertical
+///   `ScrollView` (see `FavoritesView.body`). With only the strip's own
+///   horizontal `ScrollView` in the gesture tree above the card, the
+///   arbiter no longer has an outer vertical pan to hand off to, and
+///   Button's deferred-touch capture works exactly the way it does in
+///   `CatalogView`'s `categoriesStrip` (which has used the same
+///   `Button` + `.buttonStyle(.plain)` pattern since day one, and taps
+///   cleanly on device).
+///
+///   Takeaway: the root cause was always the nested-ScrollView
+///   arbitration, not the tap mechanism. Fancy UIKit bridges were
+///   treating the symptom. Lifting the strip fixes the structural cause
+///   and the simplest SwiftUI primitive then works.
+///
+/// The `FavoriteCard` in the vertical grid keeps its own SwiftUI
+/// long-press gesture because it genuinely needs it (enter bulk
+/// selection) and the vertical-parent + tap-child pairing doesn't
+/// trigger the same arbitration pathology.
+private struct CollectionMiniCard: View {
+    let id: String?
+    let name: String
+    let count: Int
+    let glyph: String
+    let customGlyph: String?
+    let accent: Color
+    let isActive: Bool
+    let theme: AppTheme
+    let cardShape: RoundedRectangle
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        Circle()
+                            .fill(isActive
+                                  ? theme.accentInk.opacity(0.25)
+                                  : accent.opacity(0.20))
+                        if let cg = customGlyph, !cg.isEmpty {
+                            Text(cg)
+                                .font(.serif(14, weight: .regular))
+                                .foregroundStyle(isActive ? theme.accentInk : accent)
+                        } else {
+                            Image(systemName: glyph)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(isActive ? theme.accentInk : accent.opacity(0.95))
+                        }
+                    }
+                    .frame(width: 30, height: 30)
+
+                    Spacer(minLength: 0)
+
+                    Text("\(count)")
+                        .font(.mono(11, weight: .semibold))
+                        .foregroundStyle((isActive ? theme.accentInk : theme.ink).opacity(0.75))
+                        .contentTransition(.numericText())
+                }
+
+                Spacer(minLength: 0)
+
+                Text(name)
+                    .font(.sans(13, weight: .semibold))
+                    .tracking(-0.1)
+                    .foregroundStyle(isActive ? theme.accentInk : theme.ink)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(12)
+            .frame(width: 140, height: 90, alignment: .topLeading)
+            .background {
+                // Active: saturated accent gradient.
+                // Inactive: plain theme-tinted translucent fill — explicitly
+                // NOT `liquidGlass`. `.glassEffect` installs a hit-testing
+                // material that can compete with gesture arbitration inside a
+                // horizontal scroll; a solid translucent fill gives the same
+                // visual language without the gesture cost.
+                if isActive {
+                    cardShape.fill(
+                        LinearGradient(
+                            colors: [accent, accent.opacity(0.78)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                } else {
+                    cardShape.fill(theme.surface.opacity(0.55))
+                }
+            }
+            .overlay(
+                cardShape
+                    .strokeBorder(
+                        isActive ? accent.opacity(0.55) : theme.line,
+                        lineWidth: isActive ? 1 : 0.5
+                    )
+            )
+            .shadow(
+                color: isActive ? accent.opacity(0.32) : Color.black.opacity(0.06),
+                radius: isActive ? 14 : 6,
+                x: 0,
+                y: isActive ? 8 : 3
+            )
+            // `.contentShape` on the CARD guarantees the full 140×90 rect is
+            // hit-testable — no transparent gaps between the glyph puck,
+            // counter, and name where a tap could fall through.
+            .contentShape(cardShape)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Dashed-outline "new collection" card. Same `Button` + `.buttonStyle(.plain)`
+/// pattern as `CollectionMiniCard` — see that struct's doc comment for the
+/// full history of why we landed here.
+private struct NewCollectionMiniCard: View {
+    let theme: AppTheme
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(theme.accent.opacity(0.18))
+                            .frame(width: 30, height: 30)
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(theme.accentDeep)
+                    }
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+                Text("Новая")
+                    .font(.sans(13, weight: .semibold))
+                    .foregroundStyle(theme.accentDeep)
+            }
+            .padding(12)
+            .frame(width: 140, height: 90, alignment: .topLeading)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        theme.accent.opacity(0.6),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -687,3 +921,4 @@ private struct EmptyFavoritesView: View {
         .frame(maxWidth: .infinity)
     }
 }
+
