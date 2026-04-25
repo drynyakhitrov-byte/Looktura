@@ -167,17 +167,22 @@ struct CollectionPickerSheet: View {
                     Text("Новая коллекция")
                         .font(.sans(15, weight: .semibold))
                         .foregroundStyle(theme.ink)
-                    Text("Назвать, выбрать настроение")
+                    Text("Значок, цвет, вещи")
                         .font(.sans(12))
                         .foregroundStyle(theme.muted)
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(theme.muted)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // See CollectionPickerRow for the tap-hit explanation; same
+            // story here. Making the whole row an explicit contentShape
+            // guarantees the Button sees every pixel, not just the text.
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableRowStyle())
     }
 
     private var emptyState: some View {
@@ -278,7 +283,33 @@ private struct CollectionPickerRow: View {
     private var isChecked: Bool { membershipState == .all }
     private var isPartial: Bool { membershipState == .some }
 
+    /// Tint used for the row's mood puck, stroke, and check — honours the
+    /// custom accent the user picked in the rich creator; falls back to the
+    /// theme accent for legacy collections.
+    private var rowAccent: Color {
+        if let hex = collection.customAccentHex, !hex.isEmpty {
+            return Color(hex: hex)
+        }
+        return theme.accent
+    }
+
     var body: some View {
+        // Why this shape:
+        //   On iOS 26 the `liquidGlassInteractive` variant uses
+        //   `glassEffect(.regular.interactive(), in:)` which installs its own
+        //   press-feedback gesture recognizer. Nested inside a SwiftUI `Button`,
+        //   that recognizer sometimes wins the touch on a real device even
+        //   though the simulator (which synthesises touches through a different
+        //   path) lets the Button handle them — producing the exact
+        //   "works in sim, dead on phone" symptom the user reported.
+        //
+        //   Switching to plain `liquidGlass(in:)` drops the greedy interactive
+        //   layer, and adding `.contentShape(RoundedRectangle(...))` makes the
+        //   Button's hit region explicit so UIKit's button recognizer always
+        //   sees the whole row as tappable. The glass press feedback now comes
+        //   from the outer Button's own press animation via
+        //   `PressableRowStyle` below — same spring feel as the capsule chips
+        //   in FavoritesView, so presses look consistent across the app.
         Button(action: action) {
             HStack(spacing: 14) {
                 moodIcon
@@ -290,31 +321,42 @@ private struct CollectionPickerRow: View {
                         .font(.mono(11))
                         .foregroundStyle(theme.muted)
                 }
-                Spacer()
+                Spacer(minLength: 8)
                 thumbStack
                 check
             }
             .padding(12)
-            .liquidGlassInteractive(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .liquidGlass(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(
-                        isChecked || isPartial ? theme.accent : Color.white.opacity(0.22),
+                        isChecked || isPartial ? rowAccent : Color.white.opacity(0.22),
                         lineWidth: isChecked || isPartial ? 1.5 : 0.6
                     )
             )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableRowStyle())
     }
 
     private var moodIcon: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 11)
-                .fill(theme.accent.opacity(0.18))
+                .fill(rowAccent.opacity(0.18))
                 .frame(width: 40, height: 40)
-            Image(systemName: collection.mood.glyph)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(theme.accentDeep)
+            if let emoji = collection.customEmoji, !emoji.isEmpty {
+                // Rich-creator collections render the chosen glyph as serif
+                // text so "✦", "◌", "❋" keep their designed proportions. SF
+                // Symbols can't render these code points correctly.
+                Text(emoji)
+                    .font(.serif(18, weight: .regular))
+                    .foregroundStyle(rowAccent)
+            } else {
+                Image(systemName: collection.mood.glyph)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(theme.accentDeep)
+            }
         }
     }
 
@@ -336,21 +378,25 @@ private struct CollectionPickerRow: View {
     private var check: some View {
         ZStack {
             Circle()
-                .stroke(isChecked || isPartial ? theme.accent : theme.line, lineWidth: 1.5)
+                .stroke(isChecked || isPartial ? rowAccent : theme.line, lineWidth: 1.5)
                 .frame(width: 24, height: 24)
             if isChecked {
-                Circle().fill(theme.accent).frame(width: 24, height: 24)
+                Circle().fill(rowAccent).frame(width: 24, height: 24)
                 Image(systemName: "checkmark")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(theme.accentInk)
+                    .foregroundStyle(.white)
             } else if isPartial {
                 // Partial fill: some products are in the collection, some aren't.
-                Circle().fill(theme.accent.opacity(0.4)).frame(width: 24, height: 24)
+                Circle().fill(rowAccent.opacity(0.4)).frame(width: 24, height: 24)
                 Rectangle()
-                    .fill(theme.accentInk)
+                    .fill(.white)
                     .frame(width: 10, height: 2)
             }
         }
+        // Cross-faded when the state flips so the tap feels acknowledged
+        // immediately — without animation the stroke-to-fill swap pops hard.
+        .animation(.easeOut(duration: 0.16), value: isChecked)
+        .animation(.easeOut(duration: 0.16), value: isPartial)
     }
 
     private func countSuffix(_ n: Int) -> String {
@@ -359,5 +405,18 @@ private struct CollectionPickerRow: View {
         if mod10 == 1 && mod100 != 11 { return "вещь" }
         if (2...4).contains(mod10) && !(12...14).contains(mod100) { return "вещи" }
         return "вещей"
+    }
+}
+
+/// Press-responsive style for the whole collection row. Gives the row a
+/// subtle spring press-scale without leaning on iOS 26's
+/// `glassEffect(.regular.interactive())`, which on physical devices
+/// occasionally swallowed the Button's tap (the root cause of the
+/// "collection picker doesn't work on phone" bug).
+private struct PressableRowStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }

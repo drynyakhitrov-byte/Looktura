@@ -27,7 +27,7 @@ struct BottomBar: View {
                     count: appState.bulkSelection?.count ?? 0,
                     onCancel: {
                         UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.6)
-                        withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
                             appState.exitBulkSelection()
                         }
                     },
@@ -37,7 +37,7 @@ struct BottomBar: View {
                         for id in ids where appState.isFavorite(id) {
                             appState.toggleFavorite(id)
                         }
-                        withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
                             appState.exitBulkSelection()
                         }
                     },
@@ -56,10 +56,17 @@ struct BottomBar: View {
                     },
                     capsuleNamespace: capsuleNS
                 )
+                // Insertion: content scales up and fades in a beat AFTER the
+                // capsule shape has finished growing (matchedGeometry on the
+                // outer Capsule is driving the morph). A short delay makes
+                // the new label/buttons appear "inside" the new shape rather
+                // than racing its resize.
                 .transition(
                     .asymmetric(
-                        insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.06)),
-                        removal: .opacity.animation(.easeOut(duration: 0.12))
+                        insertion: .scale(scale: 0.94)
+                            .combined(with: .opacity)
+                            .animation(.spring(response: 0.38, dampingFraction: 0.82).delay(0.08)),
+                        removal: .opacity.animation(.easeOut(duration: 0.10))
                     )
                 )
             } else {
@@ -67,13 +74,19 @@ struct BottomBar: View {
                     .matchedGeometryEffect(id: "bottomBarCapsule", in: capsuleNS)
                     .transition(
                         .asymmetric(
-                            insertion: .opacity.animation(.easeOut(duration: 0.18).delay(0.06)),
-                            removal: .opacity.animation(.easeOut(duration: 0.12))
+                            insertion: .scale(scale: 0.94)
+                                .combined(with: .opacity)
+                                .animation(.spring(response: 0.38, dampingFraction: 0.82).delay(0.08)),
+                            removal: .opacity.animation(.easeOut(duration: 0.10))
                         )
                     )
             }
         }
-        .animation(.spring(response: 0.5, dampingFraction: 0.86), value: inSelection)
+        // Slightly snappier, springier outer morph. The previous timing
+        // (0.5 response, 0.86 damping) felt cautious; 0.44/0.82 gives the
+        // capsule a tiny bounce on arrival which reads as "landed" rather
+        // than "stopped".
+        .animation(.spring(response: 0.44, dampingFraction: 0.82), value: inSelection)
     }
 }
 

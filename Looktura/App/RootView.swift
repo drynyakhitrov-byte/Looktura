@@ -5,17 +5,50 @@ struct RootView: View {
     @Bindable var repository: DataRepository
     @Bindable var mapAvailability: MapAvailability
 
+    /// Governs the cold-launch splash reveal. Only the initial process launch
+    /// sees it — once dismissed, subsequent state transitions (e.g. finishing
+    /// onboarding) don't re-show it. The `@State` lives here rather than in
+    /// `AppState` because splash visibility is purely presentational: nothing
+    /// in the app's domain state needs to reason about it, and it should NOT
+    /// persist across launches.
+    @State private var showSplash: Bool = true
+
     var body: some View {
         ZStack {
-            if !appState.hasCompletedOnboarding {
+            if showSplash {
+                SplashView {
+                    withAnimation(.easeInOut(duration: 0.45)) {
+                        showSplash = false
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(10)
+            } else if !appState.hasCompletedOnboarding {
                 OnboardingFlow(appState: appState)
-                    .transition(.opacity)
+                    // Onboarding arrives with a gentle scale-up so it feels
+                    // like the app "wakes into" it after the splash, rather
+                    // than crossfading abruptly.
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.995)),
+                            removal: .opacity
+                        )
+                    )
             } else {
                 MainTabView(appState: appState, repository: repository, mapAvailability: mapAvailability)
-                    .transition(.opacity)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.995)),
+                            removal: .opacity
+                        )
+                    )
             }
         }
-        .animation(.easeInOut(duration: 0.35), value: appState.hasCompletedOnboarding)
+        .animation(.easeInOut(duration: 0.45), value: showSplash)
+        // Springier handoff when the user finishes onboarding — matches the
+        // spring used inside GeoView.onDone so the end of the flow and the
+        // reveal of the main app pulse at the same tempo.
+        .animation(.spring(response: 0.55, dampingFraction: 0.88), value: appState.hasCompletedOnboarding)
     }
 }
 

@@ -41,6 +41,8 @@ struct FreshBadge: View {
 
     enum Style { case onLight, onDark, onSurface }
 
+    @Environment(\.appTheme) private var theme
+
     private var color: Color {
         switch FreshnessLevel.from(hours: hours) {
         case .fresh: return Color(hex: "#4F8F6C")
@@ -67,22 +69,48 @@ struct FreshBadge: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(background)
+        // Theme-adaptive pill (for `.onLight` callers like SwipeCard's
+        // top-right badge) uses ultraThinMaterial + a theme-tinted surface
+        // so the pill reads as glass in BOTH themes:
+        //   • ivory: white-ish surface + near-black ink
+        //   • noir:  near-black surface + near-white ink
+        // Previously the `.onLight` style hard-coded `Color.white.opacity(0.85)`
+        // + `#111010` text — fine on light product photos, but in the dark
+        // theme the whole card canvas reads dark while the pill stayed
+        // bright white, which the user correctly called out as visually
+        // inconsistent with the now-adaptive top-LEFT store pill on the
+        // same card (see `SwipeCard.storeTag`). Fix mirrors that pill:
+        // theme.surface@0.88 behind ultraThinMaterial, theme.ink text,
+        // theme.line hairline stroke.
+        .background(
+            Group {
+                switch style {
+                case .onLight:
+                    ZStack {
+                        Capsule().fill(theme.surface.opacity(0.88))
+                        Capsule().fill(.ultraThinMaterial)
+                    }
+                case .onDark:
+                    Capsule().fill(Color.white.opacity(0.12))
+                case .onSurface:
+                    Capsule().fill(Color.black.opacity(0.6))
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if style == .onLight {
+                    Capsule().strokeBorder(theme.line, lineWidth: 0.5)
+                }
+            }
+        )
         .foregroundStyle(foreground)
         .clipShape(Capsule())
     }
 
-    private var background: Color {
-        switch style {
-        case .onLight: return Color.white.opacity(0.85)
-        case .onDark: return Color.white.opacity(0.12)
-        case .onSurface: return Color.black.opacity(0.6)
-        }
-    }
-
     private var foreground: Color {
         switch style {
-        case .onLight: return Color(hex: "#111010")
+        case .onLight: return theme.ink
         case .onDark, .onSurface: return .white
         }
     }

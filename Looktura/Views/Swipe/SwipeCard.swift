@@ -72,10 +72,27 @@ struct SwipeCard: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        // Why `theme.surface.opacity(0.88)` + ultraThinMaterial rather than
+        // the previous hard-coded `Color.white.opacity(0.82)`:
+        //
+        //   The old fill was literal white regardless of theme. In the dark
+        //   theme `theme.ink` is near-white (#F4F0E8), so the pill ended up
+        //   as light text on a light pill — unreadable (the "info block in
+        //   the top-left is unreadable on dark theme" bug).
+        //
+        //   Using `theme.surface` (#FFFFFF in ivory, #1A1917 in black) means
+        //   the pill's fill always contrasts with `theme.ink`:
+        //     • light theme: near-white fill + dark ink  → readable
+        //     • dark theme:  near-black fill + light ink → readable
+        //   The ultraThinMaterial behind adds a subtle blur in both modes so
+        //   the pill still reads as glass over the product image.
         .background(
-            Capsule().fill(Color.white.opacity(0.82))
+            Capsule().fill(theme.surface.opacity(0.88))
         )
         .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule().strokeBorder(theme.line, lineWidth: 0.5)
+        )
     }
 
     /// Drop the trailing ".0" on whole-km values so the pill reads "2 км" and

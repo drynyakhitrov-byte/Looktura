@@ -125,19 +125,39 @@ final class AppState {
 
     // MARK: Collections CRUD
 
-    func createCollection(name: String, mood: CollectionMood, seedProductIds: [String] = []) -> FavCollection {
+    func createCollection(
+        name: String,
+        mood: CollectionMood,
+        customEmoji: String? = nil,
+        customAccentHex: String? = nil,
+        seedProductIds: [String] = []
+    ) -> FavCollection {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let final = trimmed.isEmpty ? mood.label : trimmed
-        let c = FavCollection(name: final, mood: mood, productIds: seedProductIds)
+        let c = FavCollection(
+            name: final,
+            mood: mood,
+            productIds: seedProductIds,
+            customEmoji: customEmoji,
+            customAccentHex: customAccentHex
+        )
         collections.insert(c, at: 0)
         return c
     }
 
-    func renameCollection(id: String, to name: String, mood: CollectionMood) {
+    func renameCollection(
+        id: String,
+        to name: String,
+        mood: CollectionMood,
+        customEmoji: String? = nil,
+        customAccentHex: String? = nil
+    ) {
         guard let idx = collections.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         collections[idx].name = trimmed.isEmpty ? mood.label : trimmed
         collections[idx].mood = mood
+        collections[idx].customEmoji = customEmoji
+        collections[idx].customAccentHex = customAccentHex
     }
 
     func deleteCollection(id: String) {

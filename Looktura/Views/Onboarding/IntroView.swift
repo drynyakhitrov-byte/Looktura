@@ -80,22 +80,37 @@ struct IntroView: View {
                         Capsule()
                             .fill(i == index ? theme.ink : theme.line)
                             .frame(width: i == index ? 28 : 6, height: 6)
-                            .animation(.spring(), value: index)
+                            // Springier feel for the active-dot stretch;
+                            // the default `.spring()` is a touch lazy in
+                            // an onboarding context where the user just
+                            // tapped something seconds ago.
+                            .animation(
+                                .spring(response: 0.45, dampingFraction: 0.78),
+                                value: index
+                            )
                     }
                 }
                 Spacer()
                 Button(action: onNext) {
                     HStack(spacing: 10) {
                         Text(data.cta).font(.sans(15, weight: .semibold))
-                        Text("→").font(.system(size: 18))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 14, weight: .bold))
                     }
                     .foregroundStyle(theme.accentInk)
                     .padding(.horizontal, 28)
                     .frame(height: 54)
                     .background(theme.ink)
                     .clipShape(Capsule())
+                    // Ink-tinted shadow — reads as "floats above the page"
+                    // without a hard line. Ports the design's
+                    // `boxShadow: 0 8px 20px -8px rgba(17,16,16,.35)`.
+                    .shadow(color: theme.ink.opacity(0.28), radius: 16, x: 0, y: 8)
+                    .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                // Spring press-scale gives the primary CTA the same tactile
+                // feel as chips elsewhere in the app.
+                .buttonStyle(IntroCTAButtonStyle())
             }
         }
         .padding(.horizontal, 28)
@@ -103,6 +118,16 @@ struct IntroView: View {
         .padding(.bottom, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(theme.bg.ignoresSafeArea())
+    }
+}
+
+/// Press-reactive style for the bottom CTA on intro pages. Spring-scale to
+/// 0.97 feels like a physical press without being so squishy it looks soft.
+private struct IntroCTAButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.spring(response: 0.24, dampingFraction: 0.72), value: configuration.isPressed)
     }
 }
 

@@ -263,13 +263,32 @@ private struct CatalogCard: View {
 
                     HStack {
                         if let s = store {
+                            // Store-name pill. Was `.white.opacity(0.85)` +
+                            // `theme.ink` text — fine in the light theme, but
+                            // in the dark theme `theme.ink` is near-white, so
+                            // the pill became white-on-white and disappeared
+                            // (same bug as SwipeCard's top-left pill pre-fix).
+                            // Now uses `theme.surface.opacity(0.88)` + an
+                            // ultraThinMaterial blur + a hairline `theme.line`
+                            // stroke so it reads as a glass chip in BOTH
+                            // themes: white-ish on ivory, near-black on noir,
+                            // always contrasting `theme.ink`.
                             Text(s.name.uppercased())
                                 .font(.mono(9))
                                 .tracking(1.2)
                                 .foregroundStyle(theme.ink)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Capsule().fill(.white.opacity(0.85)))
+                                .background(
+                                    ZStack {
+                                        Capsule().fill(theme.surface.opacity(0.88))
+                                        Capsule().fill(.ultraThinMaterial)
+                                    }
+                                )
+                                .overlay(
+                                    Capsule().strokeBorder(theme.line, lineWidth: 0.5)
+                                )
+                                .clipShape(Capsule())
                         }
                         Spacer()
                         if product.hasDiscount {
